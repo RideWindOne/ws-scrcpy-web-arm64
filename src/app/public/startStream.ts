@@ -44,7 +44,15 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
     };
     const videoCodec = options.codec ? codecMap[options.codec] : undefined;
 
-    // Build the params object. bitrate/maxFps/maxSize do NOT belong on
+    // Fit to screen off needs a max size to mean anything. Without one, scrcpy
+    // would stream at native size (3840x2160 on a 4K TV), which no caller asks
+    // for on purpose: the config dialog saves fit off with blank max width and
+    // height, and the card's connect link reads fit off for any device with no
+    // saved settings. Both were sized to the viewport before #981, so keep that.
+    const fitToScreen = (options.fitToScreen ?? true) || !options.maxSize;
+
+    // Build the params object. The video knobs (bitrate, maxFps, maxSize,
+    // iFrameInterval, codecOptions, displayId) do NOT belong on
     // ParamsStreamScrcpy — they live on VideoSettings, which StreamClientScrcpy
     // reads via player.getVideoSettings() when assembling the stream URL
     // (see buildStreamUrl). So we pass them via the 4th arg of
@@ -57,7 +65,7 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
         port: options.port ?? 0,
         secure: options.secure ?? false,
         pathname: options.pathname ?? '',
-        fitToScreen: true,
+        fitToScreen,
         ...(videoCodec !== undefined ? { videoCodec } : {}),
         ...(options.encoder !== undefined ? { encoderName: options.encoder } : {}),
         ...(typeof options.audio === 'boolean' ? { audioEnabled: options.audio } : {}),
@@ -69,14 +77,23 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
     // relevant knobs; otherwise pass undefined and let StreamClientScrcpy fall
     // back to the player's default (WebCodecsPlayer.preferredVideoSettings).
     let videoSettings: VideoSettings | undefined;
-    if (options.bitrate !== undefined || options.maxFps !== undefined || options.maxSize !== undefined) {
+    if (
+        options.bitrate !== undefined ||
+        options.maxFps !== undefined ||
+        options.maxSize !== undefined ||
+        options.iFrameInterval !== undefined ||
+        options.codecOptions !== undefined ||
+        options.displayId !== undefined
+    ) {
         videoSettings = new VideoSettings({
             bitrate: options.bitrate ?? 8000000,
             maxFps: options.maxFps ?? 15,
-            iFrameInterval: 2,
+            iFrameInterval: options.iFrameInterval ?? 2,
             bounds: options.maxSize !== undefined ? new Size(options.maxSize, options.maxSize) : new Size(0, 0),
             sendFrameMeta: false,
             lockedVideoOrientation: -1,
+            displayId: options.displayId,
+            codecOptions: options.codecOptions,
         });
     }
 
@@ -84,7 +101,7 @@ export function startStream(container: HTMLElement, deviceId: string, options: S
         const { instance, stop } = StreamClientScrcpy.start(
             params,
             undefined,
-            true,
+            fitToScreen,
             videoSettings,
             container,
             () => {

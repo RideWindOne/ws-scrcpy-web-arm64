@@ -1,0 +1,60 @@
+# Build ws-scrcpy-web Docker image for linux/arm64 on GitHub's arm64 runners.
+#
+# Why this exists:
+#   The upstream repo only publishes linux/amd64 because Google does not ship
+#   arm64 platform-tools. This fork (or your local build) uses Debian's
+#   native arm64 adb package instead, so an arm64 image is viable.
+#
+# How to use:
+#   1. Push this code to your own GitHub repo.
+#   2. Go to Actions → "Build arm64 Docker image" → Run workflow.
+#   3. The image is pushed to GHCR (ghcr.io/<your-username>/ws-scrcpy-web).
+#
+# To use GHCR packages:
+#   - The workflow pushes with GITHUB_TOKEN (packages: write permission).
+#   - First push may need you to make the package public or grant access.
+
+name: Build arm64 Docker image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - 'docker/**'
+      - 'src/**'
+      - 'package*.json'
+      - 'scripts/**'
+      - 'webpack/**'
+      - 'assets/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm64
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push arm64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platform: linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ws-scrcpy-web:arm64
+            ghcr.io/${{ github.repository_owner }}/ws-scrcpy-web:latest-arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

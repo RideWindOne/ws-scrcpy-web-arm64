@@ -87,8 +87,14 @@ FROM ${NODE_IMAGE} AS runtime
 #
 # Same reasoning as the npm removal below, which was added when Scout found
 # fixable highs "that no base rebuild had cleared".
+# Install adb from Debian repos (native arm64 + amd64).
+# Google does not publish arm64 Linux platform-tools, so the app's normal
+# first-boot download would fetch an x86_64 binary that fails with
+# "exec format error" on arm64 hosts. The Debian-packaged adb is a native
+# build for every architecture the base image supports.
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
+ && apt-get install -y --no-install-recommends adb \
  && rm -rf /var/lib/apt/lists/*
 
 # setpriv is the step-down mechanism (SP4 E3, which left it "to be verified

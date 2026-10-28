@@ -19,6 +19,13 @@ if [ "$(id -u)" = '0' ]; then
     # creating it here means the first boot writes into a directory the app
     # already owns, instead of relying on the logger's own mkdir.
     mkdir -p /data/dependencies /data/home /data/logs
+    # Point the app's adb detector at the system adb from Debian repos.
+    # Without this the app would try to download Google's x86_64 platform-tools,
+    # which does not exist for arm64 and crashes with exec format error.
+    mkdir -p /data/dependencies/adb
+    if [ ! -e /data/dependencies/adb/adb ]; then
+        ln -sf /usr/bin/adb /data/dependencies/adb/adb
+    fi
     # Only when it is actually wrong. `chown -R` on a populated /data with a
     # large dependencies tree costs real seconds on every boot for nothing.
     if [ "$(stat -c '%u' /data)" != "$APP_UID" ]; then
@@ -66,5 +73,9 @@ for dir in /data /data/dependencies /data/home /data/logs; do
     fi
 done
 mkdir -p /data/dependencies /data/home /data/logs
+mkdir -p /data/dependencies/adb
+if [ ! -e /data/dependencies/adb/adb ]; then
+    ln -sf /usr/bin/adb /data/dependencies/adb/adb
+fi
 export HOME=/data/home
 exec "$@"
